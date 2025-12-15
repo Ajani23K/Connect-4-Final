@@ -7,15 +7,29 @@ dotenv.config();
 const { Pool } = pg;
 
 const app = express();
+
+// Allowed origins for frontend (add your Vercel URL here)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://connect-4-final-9b6nt30c4-ajanis-projects-0e1d2182.vercel.app"
+];
+
+// CORS middleware with proper preflight handling
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://connect-4-final-9b6nt30c4-ajanis-projects-0e1d2182.vercel.app"
-  ],
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow non-browser requests
+    if (allowedOrigins.indexOf(origin) === -1) {
+      return callback(new Error("Not allowed by CORS"), false);
+    }
+    return callback(null, true);
+  },
+  methods: ["GET", "POST", "OPTIONS"],
+  credentials: true,
 }));
 
 app.use(express.json());
 
+// PostgreSQL connection pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -23,7 +37,7 @@ const pool = new Pool({
   },
 });
 
-// Record a game result
+// --- Record a game ---
 app.post("/api/game", async (req, res) => {
   const { winner } = req.body;
 
@@ -37,7 +51,6 @@ app.post("/api/game", async (req, res) => {
       ]
     );
 
-    // Return updated stats immediately
     const result = await pool.query(`
       SELECT
         COALESCE(SUM(human_wins),0)::int as human,
@@ -46,14 +59,15 @@ app.post("/api/game", async (req, res) => {
         COALESCE(SUM(human_wins + ai_wins + ties),0)::int as total_games
       FROM stats
     `);
+
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
+    console.error("Database error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });
 
-// Fetch global stats
+// --- Fetch global stats ---
 app.get("/api/stats", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -64,12 +78,14 @@ app.get("/api/stats", async (req, res) => {
         COALESCE(SUM(human_wins + ai_wins + ties),0)::int as total_games
       FROM stats
     `);
+
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
+    console.error("Database error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });
 
+// --- Start server ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
