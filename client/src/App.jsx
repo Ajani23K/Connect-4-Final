@@ -4,13 +4,16 @@ import { createEmptyBoard, HUMAN, AI } from "./constants";
 import { checkWinner } from "./gameLogic";
 import { getAIMove } from "./ai";
 
+// Use VITE_BACKEND_URL for flexibility in deployment
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 function App() {
   const [board, setBoard] = useState(createEmptyBoard());
   const [gameOver, setGameOver] = useState(false);
   const [winningCells, setWinningCells] = useState([]);
   const [history, setHistory] = useState([]);
 
-  // Global stats (backend)
+  // Global stats (from backend)
   const [stats, setStats] = useState({
     human: 0,
     ai: 0,
@@ -26,14 +29,10 @@ function App() {
     total: 0,
   });
 
-  // Fetch global stats on load
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
+  // Fetch global stats from backend
   const fetchStats = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/stats");
+      const res = await fetch(`${BACKEND_URL}/api/stats`);
       const data = await res.json();
       setStats({
         human: Number(data.human),
@@ -46,23 +45,33 @@ function App() {
     }
   };
 
-  // Record game to backend
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  // Record a game on backend
   const recordGame = async (winner) => {
     try {
-      await fetch("http://localhost:5000/api/game", {
+      const res = await fetch(`${BACKEND_URL}/api/game`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ winner }),
       });
-      fetchStats();
+      const data = await res.json();
+      setStats({
+        human: Number(data.human),
+        ai: Number(data.ai),
+        ties: Number(data.ties),
+        total_games: Number(data.total_games),
+      });
     } catch (err) {
       console.error("Failed to record game:", err);
     }
   };
 
-  // Record session stats
+  // Record session stats (frontend only)
   const recordSessionGame = (winner) => {
-    setSessionStats(prev => ({
+    setSessionStats((prev) => ({
       human: prev.human + (winner === "human" ? 1 : 0),
       ai: prev.ai + (winner === "ai" ? 1 : 0),
       ties: prev.ties + (winner === "tie" ? 1 : 0),
@@ -73,8 +82,8 @@ function App() {
   const handleColumnClick = (col) => {
     if (gameOver) return;
 
-    const newBoard = board.map(row => [...row]);
-    setHistory(prev => [...prev, board.map(r => [...r])]);
+    const newBoard = board.map((row) => [...row]);
+    setHistory((prev) => [...prev, board.map((r) => [...r])]);
 
     // Human move
     let placed = false;
@@ -124,7 +133,8 @@ function App() {
       return;
     }
 
-    const isTie = newBoard.every(row => row.every(cell => cell !== 0));
+    // Tie check
+    const isTie = newBoard.every((row) => row.every((cell) => cell !== 0));
     if (isTie) {
       setBoard(newBoard);
       setGameOver(true);
@@ -150,25 +160,19 @@ function App() {
     if (history.length === 0) return;
     const previousBoard = history[history.length - 1];
     setBoard(previousBoard);
-    setHistory(prev => prev.slice(0, prev.length - 1));
+    setHistory((prev) => prev.slice(0, prev.length - 1));
     setGameOver(false);
     setWinningCells([]);
   };
 
   const winRatio =
-    stats.total_games > 0
-      ? ((stats.human / stats.total_games) * 100).toFixed(1)
-      : 0;
+    stats.total_games > 0 ? ((stats.human / stats.total_games) * 100).toFixed(1) : 0;
 
   return (
     <div className="app-container">
       <h1>Connect 4</h1>
 
-      <Board
-        board={board}
-        onColumnClick={handleColumnClick}
-        winningCells={winningCells}
-      />
+      <Board board={board} onColumnClick={handleColumnClick} winningCells={winningCells} />
 
       <div style={{ marginTop: "1rem" }}>
         <button onClick={resetGame} style={{ marginRight: "10px" }}>
