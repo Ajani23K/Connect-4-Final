@@ -8,20 +8,29 @@ const { Pool } = pg;
 
 const app = express();
 
-// Allowed origins for frontend
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://connect-4-final-9b6nt30c4-ajanis-projects-0e1d2182.vercel.app"
-];
-
-// CORS middleware
+// CORS middleware - allow Vercel domains dynamically
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // allow non-browser requests
-    if (allowedOrigins.indexOf(origin) === -1) {
-      return callback(new Error("Not allowed by CORS"), false);
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost for development
+    if (origin.startsWith("http://localhost:")) {
+      return callback(null, true);
     }
-    return callback(null, true);
+    
+    // Allow any Vercel deployment (vercel.app domain)
+    if (origin.endsWith(".vercel.app")) {
+      return callback(null, true);
+    }
+    
+    // If you have a custom domain, add it here
+    // if (origin === "https://yourdomain.com") {
+    //   return callback(null, true);
+    // }
+    
+    // Reject all other origins
+    return callback(new Error("Not allowed by CORS"), false);
   },
   methods: ["GET", "POST", "OPTIONS"],
   credentials: true,
