@@ -29,42 +29,51 @@ function App() {
     total: 0,
   });
 
-  // Fetch global stats from backend
-  const fetchStats = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/stats`);
-      if (!res.ok) throw new Error("Failed to fetch stats");
-      const data = await res.json();
-      setStats({
-        human: Number(data.human) || 0,
-        ai: Number(data.ai) || 0,
-        ties: Number(data.ties) || 0,
-        total_games: Number(data.total_games) || 0,
-      });
-    } catch (err) {
-      console.error("Failed to fetch stats:", err);
-    }
-  };
-
+  // Fetch global stats on load
   useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/stats`);
+        if (!res.ok) throw new Error("Failed to fetch stats");
+        const data = await res.json();
+        setStats({
+          human: Number(data.human) || 0,
+          ai: Number(data.ai) || 0,
+          ties: Number(data.ties) || 0,
+          total_games: Number(data.total_games) || 0,
+        });
+      } catch (err) {
+        console.error("Failed to fetch stats:", err);
+      }
+    };
     fetchStats();
   }, []);
 
-  // Record a game result on backend
+  // Record game on backend and update global stats
   const recordGame = async (winner) => {
     try {
-      await fetch(`${BACKEND_URL}/api/game`, {
+      const res = await fetch(`${BACKEND_URL}/api/game`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ winner }),
       });
-      await fetchStats(); // refresh global stats after recording
+
+      if (!res.ok) throw new Error("Failed to record game");
+      const data = await res.json();
+
+      // Update global stats with response
+      setStats({
+        human: Number(data.human),
+        ai: Number(data.ai),
+        ties: Number(data.ties),
+        total_games: Number(data.total_games),
+      });
     } catch (err) {
       console.error("Failed to record game:", err);
     }
   };
 
-  // Record session stats locally
+  // Update session stats locally
   const recordSessionGame = (winner) => {
     setSessionStats((prev) => ({
       human: prev.human + (winner === "human" ? 1 : 0),
@@ -74,13 +83,14 @@ function App() {
     }));
   };
 
+  // Handle a human move
   const handleColumnClick = (col) => {
     if (gameOver) return;
 
     const newBoard = board.map((row) => [...row]);
     setHistory((prev) => [...prev, board.map((r) => [...r])]);
 
-    // --- Human move ---
+    // Place human piece
     let placed = false;
     for (let row = 5; row >= 0; row--) {
       if (newBoard[row][col] === 0) {
@@ -102,7 +112,7 @@ function App() {
       return;
     }
 
-    // --- AI move ---
+    // AI move
     const aiCol = getAIMove(newBoard);
     if (aiCol !== null) {
       for (let row = 5; row >= 0; row--) {
@@ -113,6 +123,7 @@ function App() {
       }
     }
 
+    // Check AI win
     result = checkWinner(newBoard);
     if (result.winner === AI) {
       setBoard(newBoard);
@@ -124,7 +135,7 @@ function App() {
       return;
     }
 
-    // --- Tie check ---
+    // Check tie
     const isTie = newBoard.every((row) => row.every((cell) => cell !== 0));
     if (isTie) {
       setBoard(newBoard);
@@ -138,7 +149,6 @@ function App() {
     setBoard(newBoard);
   };
 
-  // --- Reset game ---
   const resetGame = () => {
     setBoard(createEmptyBoard());
     setGameOver(false);
@@ -146,7 +156,6 @@ function App() {
     setHistory([]);
   };
 
-  // --- Undo last human move ---
   const undoMove = () => {
     if (history.length === 0) return;
     const previousBoard = history[history.length - 1];
@@ -156,7 +165,6 @@ function App() {
     setWinningCells([]);
   };
 
-  // Calculate global win ratio
   const winRatio = stats.total_games > 0 ? ((stats.human / stats.total_games) * 100).toFixed(1) : 0;
 
   return (
