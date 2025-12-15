@@ -17,7 +17,7 @@ const allowedOrigins = [
 // CORS options
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // allow non-browser requests like curl
+    if (!origin) return callback(null, true); // allow non-browser requests
     if (allowedOrigins.indexOf(origin) === -1) {
       return callback(new Error("Not allowed by CORS"), false);
     }
@@ -27,20 +27,22 @@ const corsOptions = {
   credentials: true,
 };
 
-// Apply CORS middleware globally
+// Apply CORS middleware
 app.use(cors(corsOptions));
-// Handle preflight requests
-app.options("*", cors(corsOptions));
+// Handle preflight requests for all API routes
+app.options("/api/*", cors(corsOptions));
 
 app.use(express.json());
 
-// PostgreSQL connection
+// PostgreSQL connection pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
-// Record a game
+// --- Record a game ---
 app.post("/api/game", async (req, res) => {
   const { winner } = req.body;
 
@@ -56,10 +58,10 @@ app.post("/api/game", async (req, res) => {
 
     const result = await pool.query(`
       SELECT
-        COALESCE(SUM(human_wins),0)::int as human,
-        COALESCE(SUM(ai_wins),0)::int as ai,
-        COALESCE(SUM(ties),0)::int as ties,
-        COALESCE(SUM(human_wins + ai_wins + ties),0)::int as total_games
+        COALESCE(SUM(human_wins),0)::int AS human,
+        COALESCE(SUM(ai_wins),0)::int AS ai,
+        COALESCE(SUM(ties),0)::int AS ties,
+        COALESCE(SUM(human_wins + ai_wins + ties),0)::int AS total_games
       FROM stats
     `);
 
@@ -70,15 +72,15 @@ app.post("/api/game", async (req, res) => {
   }
 });
 
-// Fetch global stats
+// --- Fetch global stats ---
 app.get("/api/stats", async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        COALESCE(SUM(human_wins),0)::int as human,
-        COALESCE(SUM(ai_wins),0)::int as ai,
-        COALESCE(SUM(ties),0)::int as ties,
-        COALESCE(SUM(human_wins + ai_wins + ties),0)::int as total_games
+        COALESCE(SUM(human_wins),0)::int AS human,
+        COALESCE(SUM(ai_wins),0)::int AS ai,
+        COALESCE(SUM(ties),0)::int AS ties,
+        COALESCE(SUM(human_wins + ai_wins + ties),0)::int AS total_games
       FROM stats
     `);
 
@@ -89,6 +91,6 @@ app.get("/api/stats", async (req, res) => {
   }
 });
 
-// Start server
+// --- Start server ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
