@@ -14,8 +14,8 @@ const allowedOrigins = [
   "https://connect-4-final-9b6nt30c4-ajanis-projects-0e1d2182.vercel.app"
 ];
 
-// CORS options
-const corsOptions = {
+// CORS middleware
+app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true); // allow non-browser requests
     if (allowedOrigins.indexOf(origin) === -1) {
@@ -25,21 +25,14 @@ const corsOptions = {
   },
   methods: ["GET", "POST", "OPTIONS"],
   credentials: true,
-};
-
-// Apply CORS middleware
-app.use(cors(corsOptions));
-// Handle preflight requests for all API routes
-app.options("/api/*", cors(corsOptions));
+}));
 
 app.use(express.json());
 
-// PostgreSQL connection pool
+// PostgreSQL connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: { rejectUnauthorized: false },
 });
 
 // --- Record a game ---
@@ -91,6 +84,5 @@ app.get("/api/stats", async (req, res) => {
   }
 });
 
-// --- Start server ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
