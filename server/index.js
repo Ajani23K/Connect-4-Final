@@ -8,7 +8,7 @@ const { Pool } = pg;
 
 const app = express();
 app.use(cors({
-  origin: "http://localhost:5173" // your React frontend
+  origin: "http://localhost:5173",
 }));
 app.use(express.json());
 
@@ -22,19 +22,28 @@ const pool = new Pool({
 
 // Record a game result
 app.post("/api/game", async (req, res) => {
-  const { winner } = req.body; // "human", "ai", "tie"
+  const { winner } = req.body;
 
   try {
     await pool.query(
-      `INSERT INTO stats (human_wins, ai_wins, ties)
-       VALUES ($1, $2, $3)`,
+      `INSERT INTO stats (human_wins, ai_wins, ties) VALUES ($1,$2,$3)`,
       [
         winner === "human" ? 1 : 0,
         winner === "ai" ? 1 : 0,
         winner === "tie" ? 1 : 0,
       ]
     );
-    res.json({ message: "Game recorded" });
+
+    // Return updated stats immediately
+    const result = await pool.query(`
+      SELECT
+        COALESCE(SUM(human_wins),0)::int as human,
+        COALESCE(SUM(ai_wins),0)::int as ai,
+        COALESCE(SUM(ties),0)::int as ties,
+        COALESCE(SUM(human_wins + ai_wins + ties),0)::int as total_games
+      FROM stats
+    `);
+    res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error" });
@@ -44,21 +53,15 @@ app.post("/api/game", async (req, res) => {
 // Fetch global stats
 app.get("/api/stats", async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT SUM(human_wins) as human, SUM(ai_wins) as ai, SUM(ties) as ties
-       FROM stats`
-    );
+    const result = await pool.query(`
+      SELECT
+        COALESCE(SUM(human_wins),0)::int as human,
+        COALESCE(SUM(ai_wins),0)::int as ai,
+        COALESCE(SUM(ties),0)::int as ties,
+        COALESCE(SUM(human_wins + ai_wins + ties),0)::int as total_games
+      FROM stats
+    `);
     res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Database error" });
-  }
-});
-// Test database connection
-app.get("/api/test-db", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT 1+1 AS test");
-    res.json({ message: "Database works", result: result.rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error" });

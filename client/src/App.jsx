@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Board from "./components/Board";
 import { createEmptyBoard, HUMAN, AI } from "./constants";
 import { checkWinner } from "./gameLogic";
@@ -9,7 +9,37 @@ function App() {
   const [gameOver, setGameOver] = useState(false);
   const [winningCells, setWinningCells] = useState([]);
   const [history, setHistory] = useState([]);
-  const [stats, setStats] = useState({ human: 0, ai: 0, ties: 0 }); // stats state
+  const [stats, setStats] = useState({ human: 0, ai: 0, ties: 0, total_games: 0 });
+
+  // Fetch stats on load
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/stats");
+      const data = await res.json();
+      setStats(data);
+    } catch (err) {
+      console.error("Failed to fetch stats:", err);
+    }
+  };
+
+  // Record game and update stats
+  const recordGame = async (winner) => {
+    try {
+      const res = await fetch("http://localhost:5000/api/game", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ winner }),
+      });
+      const data = await res.json();
+      setStats(data); // update stats immediately from response
+    } catch (err) {
+      console.error("Failed to record game:", err);
+    }
+  };
 
   const handleColumnClick = (col) => {
     if (gameOver) return;
@@ -17,7 +47,7 @@ function App() {
     const newBoard = board.map(row => [...row]);
     setHistory(prev => [...prev, board.map(r => [...r])]);
 
-    // --- Human move ---
+    // Human move
     let placed = false;
     for (let row = 5; row >= 0; row--) {
       if (newBoard[row][col] === 0) {
@@ -28,18 +58,17 @@ function App() {
     }
     if (!placed) return;
 
-    // Check human win
     let result = checkWinner(newBoard);
     if (result.winner === HUMAN) {
       setBoard(newBoard);
       setWinningCells(result.cells);
       setGameOver(true);
-      setStats(prev => ({ ...prev, human: prev.human + 1 }));
+      recordGame("human");
       alert("You win!");
       return;
     }
 
-    // --- AI move ---
+    // AI move
     const aiCol = getAIMove(newBoard);
     if (aiCol !== null) {
       for (let row = 5; row >= 0; row--) {
@@ -50,23 +79,23 @@ function App() {
       }
     }
 
-    // Check AI win
+    // AI win check
     result = checkWinner(newBoard);
     if (result.winner === AI) {
       setBoard(newBoard);
       setWinningCells(result.cells);
       setGameOver(true);
-      setStats(prev => ({ ...prev, ai: prev.ai + 1 }));
+      recordGame("ai");
       alert("AI wins!");
       return;
     }
 
-    // Check for tie (board full)
+    // Tie check
     const isTie = newBoard.every(row => row.every(cell => cell !== 0));
     if (isTie) {
       setBoard(newBoard);
       setGameOver(true);
-      setStats(prev => ({ ...prev, ties: prev.ties + 1 }));
+      recordGame("tie");
       alert("Tie game!");
       return;
     }
@@ -74,7 +103,6 @@ function App() {
     setBoard(newBoard);
   };
 
-  // --- Reset the game ---
   const resetGame = () => {
     setBoard(createEmptyBoard());
     setGameOver(false);
@@ -82,10 +110,8 @@ function App() {
     setHistory([]);
   };
 
-  // --- Undo last human move ---
   const undoMove = () => {
     if (history.length === 0) return;
-
     const previousBoard = history[history.length - 1];
     setBoard(previousBoard);
     setHistory(prev => prev.slice(0, prev.length - 1));
@@ -93,9 +119,7 @@ function App() {
     setWinningCells([]);
   };
 
-  // --- Calculate total games and win ratio ---
-  const totalGames = stats.human + stats.ai + stats.ties;
-  const winRatio = totalGames > 0 ? ((stats.human / totalGames) * 100).toFixed(1) : 0;
+  const winRatio = stats.total_games > 0 ? ((stats.human / stats.total_games) * 100).toFixed(1) : 0;
 
   return (
     <div className="app-container">
@@ -112,8 +136,8 @@ function App() {
       </div>
 
       <div style={{ marginTop: "1rem" }}>
-        <h2>Stats</h2>
-        <p>Total Games: {totalGames}</p>
+        <h2>Stats (Global)</h2>
+        <p>Total Games: {stats.total_games}</p>
         <p>Human Wins: {stats.human}</p>
         <p>AI Wins: {stats.ai}</p>
         <p>Ties: {stats.ties}</p>
