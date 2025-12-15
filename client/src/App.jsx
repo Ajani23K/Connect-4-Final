@@ -8,13 +8,17 @@ function App() {
   const [board, setBoard] = useState(createEmptyBoard());
   const [gameOver, setGameOver] = useState(false);
   const [winningCells, setWinningCells] = useState([]);
+  const [history, setHistory] = useState([]); // store human move boards only
 
   const handleColumnClick = (col) => {
     if (gameOver) return;
 
     const newBoard = board.map(row => [...row]);
 
-    // Human move
+    // Store current board for undo (before human move)
+    setHistory(prev => [...prev, board.map(r => [...r])]);
+
+    // --- Human move ---
     let placed = false;
     for (let row = 5; row >= 0; row--) {
       if (newBoard[row][col] === 0) {
@@ -23,7 +27,6 @@ function App() {
         break;
       }
     }
-
     if (!placed) return;
 
     // Check human win
@@ -36,7 +39,7 @@ function App() {
       return;
     }
 
-    // AI move
+    // --- AI move ---
     const aiCol = getAIMove(newBoard);
     if (aiCol !== null) {
       for (let row = 5; row >= 0; row--) {
@@ -60,6 +63,25 @@ function App() {
     setBoard(newBoard);
   };
 
+  // --- Reset the game ---
+  const resetGame = () => {
+    setBoard(createEmptyBoard());
+    setGameOver(false);
+    setWinningCells([]);
+    setHistory([]);
+  };
+
+  // --- Undo last human move ---
+  const undoMove = () => {
+    if (history.length === 0) return;
+
+    const previousBoard = history[history.length - 1];
+    setBoard(previousBoard);
+    setHistory(prev => prev.slice(0, prev.length - 1));
+    setGameOver(false);
+    setWinningCells([]);
+  };
+
   return (
     <div className="app-container">
       <h1>Connect 4</h1>
@@ -68,6 +90,10 @@ function App() {
         onColumnClick={handleColumnClick}
         winningCells={winningCells}
       />
+      <div style={{ marginTop: "1rem" }}>
+        <button onClick={resetGame} style={{ marginRight: "10px" }}>Reset Game</button>
+        <button onClick={undoMove}>Undo Last Human Move</button>
+      </div>
     </div>
   );
 }
