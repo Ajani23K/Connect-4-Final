@@ -9,9 +9,24 @@ function App() {
   const [gameOver, setGameOver] = useState(false);
   const [winningCells, setWinningCells] = useState([]);
   const [history, setHistory] = useState([]);
-  const [stats, setStats] = useState({ human: 0, ai: 0, ties: 0, total_games: 0 });
 
-  // Fetch stats on load
+  // Global stats (backend)
+  const [stats, setStats] = useState({
+    human: 0,
+    ai: 0,
+    ties: 0,
+    total_games: 0,
+  });
+
+  // Session stats (frontend only)
+  const [sessionStats, setSessionStats] = useState({
+    human: 0,
+    ai: 0,
+    ties: 0,
+    total: 0,
+  });
+
+  // Fetch global stats on load
   useEffect(() => {
     fetchStats();
   }, []);
@@ -20,25 +35,39 @@ function App() {
     try {
       const res = await fetch("http://localhost:5000/api/stats");
       const data = await res.json();
-      setStats(data);
+      setStats({
+        human: Number(data.human),
+        ai: Number(data.ai),
+        ties: Number(data.ties),
+        total_games: Number(data.total_games),
+      });
     } catch (err) {
       console.error("Failed to fetch stats:", err);
     }
   };
 
-  // Record game and update stats
+  // Record game to backend
   const recordGame = async (winner) => {
     try {
-      const res = await fetch("http://localhost:5000/api/game", {
+      await fetch("http://localhost:5000/api/game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ winner }),
       });
-      const data = await res.json();
-      setStats(data); // update stats immediately from response
+      fetchStats();
     } catch (err) {
       console.error("Failed to record game:", err);
     }
+  };
+
+  // Record session stats
+  const recordSessionGame = (winner) => {
+    setSessionStats(prev => ({
+      human: prev.human + (winner === "human" ? 1 : 0),
+      ai: prev.ai + (winner === "ai" ? 1 : 0),
+      ties: prev.ties + (winner === "tie" ? 1 : 0),
+      total: prev.total + 1,
+    }));
   };
 
   const handleColumnClick = (col) => {
@@ -63,7 +92,10 @@ function App() {
       setBoard(newBoard);
       setWinningCells(result.cells);
       setGameOver(true);
+
       recordGame("human");
+      recordSessionGame("human");
+
       alert("You win!");
       return;
     }
@@ -79,23 +111,27 @@ function App() {
       }
     }
 
-    // AI win check
     result = checkWinner(newBoard);
     if (result.winner === AI) {
       setBoard(newBoard);
       setWinningCells(result.cells);
       setGameOver(true);
+
       recordGame("ai");
+      recordSessionGame("ai");
+
       alert("AI wins!");
       return;
     }
 
-    // Tie check
     const isTie = newBoard.every(row => row.every(cell => cell !== 0));
     if (isTie) {
       setBoard(newBoard);
       setGameOver(true);
+
       recordGame("tie");
+      recordSessionGame("tie");
+
       alert("Tie game!");
       return;
     }
@@ -119,11 +155,15 @@ function App() {
     setWinningCells([]);
   };
 
-  const winRatio = stats.total_games > 0 ? ((stats.human / stats.total_games) * 100).toFixed(1) : 0;
+  const winRatio =
+    stats.total_games > 0
+      ? ((stats.human / stats.total_games) * 100).toFixed(1)
+      : 0;
 
   return (
     <div className="app-container">
       <h1>Connect 4</h1>
+
       <Board
         board={board}
         onColumnClick={handleColumnClick}
@@ -131,17 +171,27 @@ function App() {
       />
 
       <div style={{ marginTop: "1rem" }}>
-        <button onClick={resetGame} style={{ marginRight: "10px" }}>Reset Game</button>
+        <button onClick={resetGame} style={{ marginRight: "10px" }}>
+          Reset Game
+        </button>
         <button onClick={undoMove}>Undo Last Human Move</button>
       </div>
 
       <div style={{ marginTop: "1rem" }}>
-        <h2>Stats (Global)</h2>
+        <h2>Global Stats</h2>
         <p>Total Games: {stats.total_games}</p>
         <p>Human Wins: {stats.human}</p>
         <p>AI Wins: {stats.ai}</p>
         <p>Ties: {stats.ties}</p>
         <p>Win Ratio: {winRatio}%</p>
+      </div>
+
+      <div style={{ marginTop: "1rem" }}>
+        <h2>Session Stats</h2>
+        <p>Total Games: {sessionStats.total}</p>
+        <p>Human Wins: {sessionStats.human}</p>
+        <p>AI Wins: {sessionStats.ai}</p>
+        <p>Ties: {sessionStats.ties}</p>
       </div>
     </div>
   );
