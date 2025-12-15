@@ -10,7 +10,7 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://YOUR-VERCEL-APP.vercel.app"
+    "https://connect-4-final-9b6nt30c4-ajanis-projects-0e1d2182.vercel.app"
   ],
 }));
 
