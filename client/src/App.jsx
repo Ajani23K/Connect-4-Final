@@ -4,8 +4,8 @@ import { createEmptyBoard, HUMAN, AI } from "./constants";
 import { checkWinner } from "./gameLogic";
 import { getAIMove } from "./ai";
 
-// Use VITE_BACKEND_URL for flexibility in deployment
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+// Use environment variable for backend URL (Render in prod, localhost in dev)
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
 function App() {
   const [board, setBoard] = useState(createEmptyBoard());
@@ -13,7 +13,7 @@ function App() {
   const [winningCells, setWinningCells] = useState([]);
   const [history, setHistory] = useState([]);
 
-  // Global stats (from backend)
+  // Global stats fetched from backend
   const [stats, setStats] = useState({
     human: 0,
     ai: 0,
@@ -21,7 +21,7 @@ function App() {
     total_games: 0,
   });
 
-  // Session stats (frontend only)
+  // Session stats (per user)
   const [sessionStats, setSessionStats] = useState({
     human: 0,
     ai: 0,
@@ -33,12 +33,13 @@ function App() {
   const fetchStats = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/stats`);
+      if (!res.ok) throw new Error("Failed to fetch stats");
       const data = await res.json();
       setStats({
-        human: Number(data.human),
-        ai: Number(data.ai),
-        ties: Number(data.ties),
-        total_games: Number(data.total_games),
+        human: Number(data.human) || 0,
+        ai: Number(data.ai) || 0,
+        ties: Number(data.ties) || 0,
+        total_games: Number(data.total_games) || 0,
       });
     } catch (err) {
       console.error("Failed to fetch stats:", err);
@@ -49,27 +50,21 @@ function App() {
     fetchStats();
   }, []);
 
-  // Record a game on backend
+  // Record a game result on backend
   const recordGame = async (winner) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/game`, {
+      await fetch(`${BACKEND_URL}/api/game`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ winner }),
       });
-      const data = await res.json();
-      setStats({
-        human: Number(data.human),
-        ai: Number(data.ai),
-        ties: Number(data.ties),
-        total_games: Number(data.total_games),
-      });
+      await fetchStats(); // refresh global stats after recording
     } catch (err) {
       console.error("Failed to record game:", err);
     }
   };
 
-  // Record session stats (frontend only)
+  // Record session stats locally
   const recordSessionGame = (winner) => {
     setSessionStats((prev) => ({
       human: prev.human + (winner === "human" ? 1 : 0),
@@ -85,7 +80,7 @@ function App() {
     const newBoard = board.map((row) => [...row]);
     setHistory((prev) => [...prev, board.map((r) => [...r])]);
 
-    // Human move
+    // --- Human move ---
     let placed = false;
     for (let row = 5; row >= 0; row--) {
       if (newBoard[row][col] === 0) {
@@ -101,15 +96,13 @@ function App() {
       setBoard(newBoard);
       setWinningCells(result.cells);
       setGameOver(true);
-
       recordGame("human");
       recordSessionGame("human");
-
       alert("You win!");
       return;
     }
 
-    // AI move
+    // --- AI move ---
     const aiCol = getAIMove(newBoard);
     if (aiCol !== null) {
       for (let row = 5; row >= 0; row--) {
@@ -125,23 +118,19 @@ function App() {
       setBoard(newBoard);
       setWinningCells(result.cells);
       setGameOver(true);
-
       recordGame("ai");
       recordSessionGame("ai");
-
       alert("AI wins!");
       return;
     }
 
-    // Tie check
+    // --- Tie check ---
     const isTie = newBoard.every((row) => row.every((cell) => cell !== 0));
     if (isTie) {
       setBoard(newBoard);
       setGameOver(true);
-
       recordGame("tie");
       recordSessionGame("tie");
-
       alert("Tie game!");
       return;
     }
@@ -149,6 +138,7 @@ function App() {
     setBoard(newBoard);
   };
 
+  // --- Reset game ---
   const resetGame = () => {
     setBoard(createEmptyBoard());
     setGameOver(false);
@@ -156,6 +146,7 @@ function App() {
     setHistory([]);
   };
 
+  // --- Undo last human move ---
   const undoMove = () => {
     if (history.length === 0) return;
     const previousBoard = history[history.length - 1];
@@ -165,8 +156,8 @@ function App() {
     setWinningCells([]);
   };
 
-  const winRatio =
-    stats.total_games > 0 ? ((stats.human / stats.total_games) * 100).toFixed(1) : 0;
+  // Calculate global win ratio
+  const winRatio = stats.total_games > 0 ? ((stats.human / stats.total_games) * 100).toFixed(1) : 0;
 
   return (
     <div className="app-container">
@@ -175,9 +166,7 @@ function App() {
       <Board board={board} onColumnClick={handleColumnClick} winningCells={winningCells} />
 
       <div style={{ marginTop: "1rem" }}>
-        <button onClick={resetGame} style={{ marginRight: "10px" }}>
-          Reset Game
-        </button>
+        <button onClick={resetGame} style={{ marginRight: "10px" }}>Reset Game</button>
         <button onClick={undoMove}>Undo Last Human Move</button>
       </div>
 
